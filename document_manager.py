@@ -62,9 +62,12 @@ def _load_cloudinary_cache() -> Dict[str, str]:
     return {}
 
 def _save_cloudinary_cache(cache: Dict[str, str]) -> None:
-    os.makedirs(os.path.dirname(CLOUDINARY_CACHE_FILE), exist_ok=True)
-    with open(CLOUDINARY_CACHE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(cache, f, indent=2)
+    try:
+        os.makedirs(os.path.dirname(CLOUDINARY_CACHE_FILE), exist_ok=True)
+        with open(CLOUDINARY_CACHE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cache, f, indent=2)
+    except OSError:
+        pass
 
 def _store_image(image_bytes: bytes, public_id_hint: str) -> str:
     """Store image bytes. Returns a URL (Cloudinary) or local path.
@@ -93,21 +96,27 @@ def _store_image(image_bytes: bytes, public_id_hint: str) -> str:
         except Exception as e:
             print(f'Cloudinary upload failed: {e}')
 
-    # Local fallback
+    # Local fallback (skip on read-only filesystems)
     short_hash = file_hash[:8]
     clean_hint = "".join(c for c in public_id_hint if c.isalnum() or c in (' ', '-', '_')).strip()
     image_filename = f'{clean_hint}_{short_hash}.png'
     image_path = os.path.join(EXTRACTED_IMAGES_DIR, image_filename)
-    os.makedirs(EXTRACTED_IMAGES_DIR, exist_ok=True)
-    with open(image_path, 'wb') as f:
-        f.write(image_bytes)
+    try:
+        os.makedirs(EXTRACTED_IMAGES_DIR, exist_ok=True)
+        with open(image_path, 'wb') as f:
+            f.write(image_bytes)
+    except OSError:
+        return ''
     return f'/static/extracted_images/{image_filename}'
 
 def ensure_documents_dir():
-    """Ensure documents directory exists"""
-    os.makedirs(DOCUMENTS_DIR, exist_ok=True)
-    os.makedirs(os.path.dirname(METADATA_FILE), exist_ok=True)
-    os.makedirs(EXTRACTED_IMAGES_DIR, exist_ok=True)
+    """Ensure documents directory exists (no-op on read-only filesystems like Vercel)."""
+    try:
+        os.makedirs(DOCUMENTS_DIR, exist_ok=True)
+        os.makedirs(os.path.dirname(METADATA_FILE), exist_ok=True)
+        os.makedirs(EXTRACTED_IMAGES_DIR, exist_ok=True)
+    except OSError:
+        pass
 
 def get_file_metadata(file_path: str) -> Dict[str, Any]:
     """Extract metadata from a file"""
