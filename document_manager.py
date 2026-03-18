@@ -215,7 +215,7 @@ def _natural_sort_key(s: str):
     return [int(p) if p.isdigit() else p for p in parts]
 
 def get_conference_subfolder_images(subfolder_name: str) -> List[Dict[str, str]]:
-    """Get image paths from a conference subfolder. Returns URL-safe paths."""
+    """Get image paths from a conference subfolder. Uploads to Cloudinary when available."""
     from urllib.parse import quote
     folder_path = os.path.join(DOCUMENTS_DIR, 'Conferences', subfolder_name)
     if not os.path.isdir(folder_path):
@@ -223,6 +223,17 @@ def get_conference_subfolder_images(subfolder_name: str) -> List[Dict[str, str]]
     images = []
     files = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in IMAGE_EXTENSIONS]
     for f in sorted(files, key=_natural_sort_key):
+        img_path = os.path.join(folder_path, f)
+        try:
+            with open(img_path, 'rb') as fh:
+                img_bytes = fh.read()
+            hint = os.path.splitext(f)[0]
+            url = _store_image(img_bytes, f'{subfolder_name}_{hint}')
+            if url:
+                images.append({'path': url})
+                continue
+        except Exception:
+            pass
         rel = subfolder_name + '/' + f
         images.append({'path': '/documents/conference-image/' + quote(rel)})
     return images
